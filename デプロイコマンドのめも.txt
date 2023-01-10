@@ -1,0 +1,2 @@
+.\deploystackv3.ps1 .\restart-systemctl.yml iss-tko-stg2-restart-systemctl stg2 AwsEnvId=stg2, ServiceEnvId=stg2 -new
+.\deploystackv3.ps1 .\send-originparam.yml iss-tko-stg2-send-originparam stg2 AwsEnvId=stg2, ServiceEnvId=stg2 -new

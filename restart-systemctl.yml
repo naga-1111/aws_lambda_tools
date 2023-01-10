@@ -1,0 +1,109 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'restart autoscaling group systemctl'
+
+# ------------------------------------------------------------#
+# Input Parameters
+# ------------------------------------------------------------#
+Parameters:
+  SystemId:
+    Type: String
+    Description: System ID
+    Default: iss
+    AllowedValues:
+      - iss
+  AwsRegionId:
+    Type: String
+    Description: AWS Region ID
+    Default: tko
+    AllowedValues:
+      - tko
+  AwsEnvId:
+    Type: String
+    Description: AWS Environment ID
+    Default: deve
+    AllowedValues:
+      - tes1
+      - prod
+      - stag
+      - deve
+      - stg2
+  ServiceEnvId:
+    Type: String
+    Description: Service Environment ID
+    Default: deve
+# ------------------------------------------------------------#
+# Mapping
+# ------------------------------------------------------------#
+Mappings:
+  EnvMap:
+    stg2:
+      LambdaFunctionCode: 20221223.zip
+# ------------------------------------------------------------#
+# Resources
+# ------------------------------------------------------------#
+Resources:
+  ScheduledRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: ScheduledRule
+      ScheduleExpression: 'cron(10 1,9 ? * 2-6 *)'
+      State: ENABLED
+      Targets:
+      - Arn: !GetAtt 'LambdaFunction.Arn'
+        Id: TargetFunctionV1
+  PermissionForEventsToInvokeLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref 'LambdaFunction'
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt 'ScheduledRule.Arn'
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: root
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - ec2:DescribeInstances
+            - ssm:SendCommand
+            - ssm:ListCommandInvocations
+            Resource: '*'
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${SystemId}-${AwsRegionId}-${ServiceEnvId}-restart-systemctl
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+      Code:
+        S3Bucket: !Sub ${SystemId}-${AwsRegionId}-${ServiceEnvId}-work-bucket
+        S3Key:
+          Fn::FindInMap: [EnvMap, !Ref ServiceEnvId, LambdaFunctionCode ]
+      Architectures:
+        - x86_64
+      Runtime: python3.8
+      Handler: app.lambda_handler
+      MemorySize: 128
+      Timeout: 120
+      Description: 'restart autoscaling group systemctrl'
+      Tags:
+      - Key: Name
+        Value: 'ScheduledLambdaSample'
+      - Key: CloudformationArn
+        Value: !Ref 'AWS::StackId'
